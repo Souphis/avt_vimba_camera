@@ -30,10 +30,11 @@
 /// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 /// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <avt_vimba_camera/avt_vimba_camera.h>
-#include <avt_vimba_camera/avt_vimba_api.h>
+#include "avt_vimba_camera/avt_vimba_camera.h"
+#include "avt_vimba_camera/avt_vimba_api.h"
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+#include <diagnostic_msgs/msg/diagnostic_status.hpp>
 
 #include <signal.h>
 #include <thread>
@@ -63,23 +64,38 @@ void intHandler(int dummy)
   keepRunning = 0;
 }
 
-AvtVimbaCamera::AvtVimbaCamera() : AvtVimbaCamera(ros::this_node::getName().c_str())
-{
-}
+// AvtVimbaCamera::AvtVimbaCamera() : AvtVimbaCamera(ros::this_node::getName().c_str())
+// {
+// }
 
-AvtVimbaCamera::AvtVimbaCamera(const std::string& name)
+// AvtVimbaCamera::AvtVimbaCamera(const std::string& name)
+// {
+//   // Init global variables
+//   opened_ = false;     // camera connected to the api
+//   streaming_ = false;  // capturing frames
+//   on_init_ = true;     // on initialization phase
+//   name_ = name;
+
+//   camera_state_ = OPENING;
+
+//   updater_.setHardwareID("unknown");
+//   updater_.add(name_, this, &AvtVimbaCamera::getCurrentState);
+//   updater_.force_update();;
+// }
+
+AvtVimbaCamera::AvtVimbaCamera(rclcpp::Node* owner_node) : logger_(owner_node->get_logger()), clock_(rclcpp::Clock(RCL_ROS_TIME)), api_(owner_node->get_logger()), updater_(owner_node)
 {
   // Init global variables
   opened_ = false;     // camera connected to the api
   streaming_ = false;  // capturing frames
   on_init_ = true;     // on initialization phase
-  name_ = name;
+  // name_ = name;
+  name_ = "TEST_NAME_update";
 
   camera_state_ = OPENING;
 
   updater_.setHardwareID("unknown");
   updater_.add(name_, this, &AvtVimbaCamera::getCurrentState);
-  updater_.update();
 }
 
 void AvtVimbaCamera::start(const std::string& ip_str, const std::string& guid_str, const std::string& frame_id,
@@ -95,11 +111,11 @@ void AvtVimbaCamera::start(const std::string& ip_str, const std::string& guid_st
   if (!ip_str.empty())
   {
     diagnostic_msg_ = "Trying to open camera by IP: " + ip_str;
-    ROS_INFO_STREAM("Trying to open camera by IP: " << ip_str);
+    RCLCPP_INFO_STREAM(logger_, "Trying to open camera by IP: " << ip_str);
     vimba_camera_ptr_ = openCamera(ip_str, print_all_features);
     if (!vimba_camera_ptr_)
     {
-      ROS_WARN("Camera pointer is empty. Returning...");
+      RCLCPP_WARN(logger_, "Camera pointer is empty. Returning...");
       return;
     }
     updater_.setHardwareID(ip_str);
@@ -111,21 +127,21 @@ void AvtVimbaCamera::start(const std::string& ip_str, const std::string& guid_st
       vimba_camera_ptr_->GetSerialNumber(cam_guid_str);
       if (!vimba_camera_ptr_)
       {
-        ROS_WARN("Camera pointer is empty. Returning...");
+        RCLCPP_WARN(logger_, "Camera pointer is empty. Returning...");
         return;
       }
       assert(cam_guid_str == guid_str);
       updater_.setHardwareID(guid_str);
       guid_ = guid_str;
       diagnostic_msg_ = "GUID " + cam_guid_str + " matches for camera with IP: " + ip_str;
-      ROS_INFO_STREAM("GUID " << cam_guid_str << " matches for camera with IP: " << ip_str);
+      RCLCPP_INFO_STREAM(logger_, "GUID " << cam_guid_str << " matches for camera with IP: " << ip_str);
     }
   }
   else if (!guid_str.empty())
   {
     // Only guid available
     diagnostic_msg_ = "Trying to open camera by ID: " + guid_str;
-    ROS_INFO_STREAM("Trying to open camera by ID: " << guid_str);
+    RCLCPP_INFO_STREAM(logger_, "Trying to open camera by ID: " << guid_str);
     vimba_camera_ptr_ = openCamera(guid_str, print_all_features);
     updater_.setHardwareID(guid_str);
     guid_ = guid_str;
@@ -134,10 +150,10 @@ void AvtVimbaCamera::start(const std::string& ip_str, const std::string& guid_st
   {
     // No identifying info (GUID and IP) are available
     diagnostic_msg_ = "Can't connect to the camera: at least GUID or IP need to be set.";
-    ROS_ERROR("Can't connect to the camera: at least GUID or IP need to be set.");
+    RCLCPP_ERROR(logger_, "Can't connect to the camera: at least GUID or IP need to be set.");
     camera_state_ = ERROR;
   }
-  updater_.update();
+  updater_.force_update();;
 
   getFeatureValue("GevTimestampTickFrequency", vimba_timestamp_tick_freq_);
 
@@ -166,10 +182,10 @@ void AvtVimbaCamera::start(const std::string& ip_str, const std::string& guid_st
   else
   {
     diagnostic_msg_ = "Trigger mode " + std::string(TriggerMode[trigger_source_int]) + " not implemented.";
-    ROS_ERROR_STREAM("Trigger mode " << TriggerMode[trigger_source_int] << " not implemented.");
+    RCLCPP_ERROR_STREAM(logger_, "Trigger mode " << TriggerMode[trigger_source_int] << " not implemented.");
     camera_state_ = ERROR;
   }
-  updater_.update();
+  updater_.force_update();;
 }
 
 void AvtVimbaCamera::stop()
@@ -189,23 +205,23 @@ void AvtVimbaCamera::startImaging()
     if (err == VmbErrorSuccess)
     {
       diagnostic_msg_ = "Starting continuous image acquisition";
-      ROS_INFO_STREAM("Starting continuous image acquisition ...");
+      RCLCPP_INFO_STREAM(logger_, "Starting continuous image acquisition ...");
       streaming_ = true;
       camera_state_ = OK;
     }
     else
     {
       diagnostic_msg_ = "Could not start continuous image acquisition. Error: " + api_.errorCodeToMessage(err);
-      ROS_ERROR_STREAM("Could not start continuous image acquisition. "
+      RCLCPP_ERROR_STREAM(logger_, "Could not start continuous image acquisition. "
                        << "\n Error: " << api_.errorCodeToMessage(err));
       camera_state_ = ERROR;
     }
   }
   else
   {
-    ROS_WARN_STREAM("Start imaging called, but the camera is already imaging.");
+    RCLCPP_WARN_STREAM(logger_, "Start imaging called, but the camera is already imaging.");
   }
-  updater_.update();
+  updater_.force_update();;
 }
 
 void AvtVimbaCamera::stopImaging()
@@ -216,23 +232,23 @@ void AvtVimbaCamera::stopImaging()
     if (err == VmbErrorSuccess)
     {
       diagnostic_msg_ = "Acquisition stopped";
-      ROS_INFO_STREAM("Acquisition stoppped ...");
+      RCLCPP_INFO_STREAM(logger_, "Acquisition stoppped ...");
       streaming_ = false;
       camera_state_ = IDLE;
     }
     else
     {
       diagnostic_msg_ = "Could not stop image acquisition. Error: " + api_.errorCodeToMessage(err);
-      ROS_ERROR_STREAM("Could not stop image acquisition."
+      RCLCPP_ERROR_STREAM(logger_, "Could not stop image acquisition."
                        << "\n Error: " << api_.errorCodeToMessage(err));
       camera_state_ = ERROR;
     }
   }
   else
   {
-    ROS_WARN_STREAM("Stop imaging called, but the camera is already stopped.");
+    RCLCPP_WARN_STREAM(logger_, "Stop imaging called, but the camera is already stopped.");
   }
-  updater_.update();
+  updater_.force_update();;
 }
 
 CameraPtr AvtVimbaCamera::openCamera(const std::string& id_str, bool print_all_features)
@@ -254,13 +270,14 @@ CameraPtr AvtVimbaCamera::openCamera(const std::string& id_str, bool print_all_f
   {
     if (keepRunning)
     {
-      ROS_WARN_STREAM("Could not find camera using " << id_str << ". Retrying every two seconds ...");
-      ros::Duration(2.0).sleep();
+      RCLCPP_WARN_STREAM(logger_, "Could not find camera using " << id_str << ". Retrying every two seconds ...");
+      // ros::Duration(2.0).sleep();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2000));
       err = vimba_system.GetCameraByID(id_str.c_str(), camera);
     }
     else
     {
-      ROS_ERROR_STREAM("Could not find camera using " << id_str << "\n Error: " << api_.errorCodeToMessage(err));
+      RCLCPP_ERROR_STREAM(logger_, "Could not find camera using " << id_str << "\n Error: " << api_.errorCodeToMessage(err));
       camera_state_ = CAMERA_NOT_FOUND;
       return camera;
     }
@@ -272,13 +289,14 @@ CameraPtr AvtVimbaCamera::openCamera(const std::string& id_str, bool print_all_f
   {
     if (keepRunning)
     {
-      ROS_WARN_STREAM("Could not open camera. Retrying every two seconds ...");
+      RCLCPP_WARN_STREAM(logger_, "Could not open camera. Retrying every two seconds ...");
       err = camera->Open(VmbAccessModeFull);
-      ros::Duration(2.0).sleep();
+      // ros::Duration(2.0).sleep();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     }
     else
     {
-      ROS_ERROR_STREAM("Could not open camera " << id_str << "\n Error: " << api_.errorCodeToMessage(err));
+      RCLCPP_ERROR_STREAM(logger_, "Could not open camera " << id_str << "\n Error: " << api_.errorCodeToMessage(err));
       camera_state_ = CAMERA_NOT_FOUND;
       return camera;
     }
@@ -290,9 +308,10 @@ CameraPtr AvtVimbaCamera::openCamera(const std::string& id_str, bool print_all_f
   std::string cam_id, cam_name;
   camera->GetID(cam_id);
   camera->GetName(cam_name);
-  ROS_INFO_STREAM("Opened connection to camera named " << cam_name << " with ID " << cam_id);
+  RCLCPP_INFO_STREAM(logger_, "Opened connection to camera named " << cam_name << " with ID " << cam_id);
 
-  ros::Duration(2.0).sleep();
+  // ros::Duration(2.0).sleep();
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
   if (print_all_features)
   {
@@ -313,7 +332,7 @@ void AvtVimbaCamera::frameCallback(const FramePtr vimba_frame_ptr)
   std::thread thread_callback = std::thread(userFrameCallback, vimba_frame_ptr);
   thread_callback.join();
 
-  updater_.update();
+  // updater_.force_update();;
 }
 
 double AvtVimbaCamera::getTimestamp()
@@ -385,7 +404,7 @@ VmbErrorType AvtVimbaCamera::setFeatureValue(const std::string& feature_str, con
     {
       if (writable)
       {
-        ROS_DEBUG_STREAM("Setting feature " << feature_str << " value " << val);
+        RCLCPP_DEBUG_STREAM(logger_, "Setting feature " << feature_str << " value " << val);
         VmbFeatureDataType data_type;
         err = vimba_feature_ptr->GetDataType(data_type);
         if (err == VmbErrorSuccess)
@@ -402,12 +421,12 @@ VmbErrorType AvtVimbaCamera::setFeatureValue(const std::string& feature_str, con
               }
               else
               {
-                ROS_WARN_STREAM("Feature " << feature_str << " is available now.");
+                RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << " is available now.");
               }
             }
             else
             {
-              ROS_WARN_STREAM("Feature " << feature_str << ": value unavailable\n\tERROR "
+              RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << ": value unavailable\n\tERROR "
                                          << api_.errorCodeToMessage(err));
             }
           }
@@ -418,22 +437,22 @@ VmbErrorType AvtVimbaCamera::setFeatureValue(const std::string& feature_str, con
         }
         else
         {
-          ROS_WARN_STREAM("Feature " << feature_str << ": Bad data type\n\tERROR " << api_.errorCodeToMessage(err));
+          RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << ": Bad data type\n\tERROR " << api_.errorCodeToMessage(err));
         }
       }
       else
       {
-        ROS_WARN_STREAM("Feature " << feature_str << " is not writable.");
+        RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << " is not writable.");
       }
     }
     else
     {
-      ROS_WARN_STREAM("Feature " << feature_str << ": ERROR " << api_.errorCodeToMessage(err));
+      RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << ": ERROR " << api_.errorCodeToMessage(err));
     }
   }
   else
   {
-    ROS_WARN_STREAM("Could not get feature " << feature_str << ", your camera probably doesn't support it.");
+    RCLCPP_WARN_STREAM(logger_, "Could not get feature " << feature_str << ", your camera probably doesn't support it.");
   }
   return err;
 }
@@ -442,7 +461,7 @@ VmbErrorType AvtVimbaCamera::setFeatureValue(const std::string& feature_str, con
 template <typename T>
 bool AvtVimbaCamera::getFeatureValue(const std::string& feature_str, T& val)
 {
-  ROS_DEBUG_STREAM("Asking for feature " << feature_str);
+  RCLCPP_DEBUG_STREAM(logger_, "Asking for feature " << feature_str);
   VmbErrorType err;
   FeaturePtr vimba_feature_ptr;
   VmbFeatureDataType data_type;
@@ -489,18 +508,18 @@ bool AvtVimbaCamera::getFeatureValue(const std::string& feature_str, T& val)
         }
         if (err != VmbErrorSuccess)
         {
-          ROS_WARN_STREAM("Could not get feature value. Error code: " << api_.errorCodeToMessage(err));
+          RCLCPP_WARN_STREAM(logger_, "Could not get feature value. Error code: " << api_.errorCodeToMessage(err));
         }
       }
     }
     else
     {
-      ROS_WARN_STREAM("Feature " << feature_str << " is not readable.");
+      RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << " is not readable.");
     }
   }
   else
   {
-    ROS_WARN_STREAM("Could not get feature " << feature_str);
+    RCLCPP_WARN_STREAM(logger_, "Could not get feature " << feature_str);
   }
   return (err == VmbErrorSuccess);
 }
@@ -508,7 +527,7 @@ bool AvtVimbaCamera::getFeatureValue(const std::string& feature_str, T& val)
 // Function to GET a feature value from the camera, overloaded to strings
 bool AvtVimbaCamera::getFeatureValue(const std::string& feature_str, std::string& val)
 {
-  ROS_DEBUG_STREAM("Asking for feature " << feature_str);
+  RCLCPP_DEBUG_STREAM(logger_, "Asking for feature " << feature_str);
   VmbErrorType err;
   FeaturePtr vimba_feature_ptr;
   VmbFeatureDataType data_type;
@@ -522,7 +541,7 @@ bool AvtVimbaCamera::getFeatureValue(const std::string& feature_str, std::string
       vimba_feature_ptr->GetDataType(data_type);
       if (err != VmbErrorSuccess)
       {
-        ROS_ERROR_STREAM("[Could not get feature Data Type. Error code: " << err << "]");
+        RCLCPP_ERROR_STREAM(logger_, "[Could not get feature Data Type. Error code: " << err << "]");
       }
       else
       {
@@ -546,18 +565,18 @@ bool AvtVimbaCamera::getFeatureValue(const std::string& feature_str, std::string
         }
         if (err != VmbErrorSuccess)
         {
-          ROS_WARN_STREAM("Could not get feature value. Error code: " << api_.errorCodeToMessage(err));
+          RCLCPP_WARN_STREAM(logger_, "Could not get feature value. Error code: " << api_.errorCodeToMessage(err));
         }
       }
     }
     else
     {
-      ROS_WARN_STREAM("Feature " << feature_str << " is not readable.");
+      RCLCPP_WARN_STREAM(logger_, "Feature " << feature_str << " is not readable.");
     }
   }
   else
   {
-    ROS_WARN_STREAM("Could not get feature " << feature_str);
+    RCLCPP_WARN_STREAM(logger_, "Could not get feature " << feature_str);
   }
   return (err == VmbErrorSuccess);
 }
@@ -575,11 +594,11 @@ void AvtVimbaCamera::configureFeature(const std::string& feature_str, const Vimb
     getFeatureValue(feature_str, actual_value);
     if (val_in == actual_value)
     {
-      ROS_INFO_STREAM(" - " << feature_str << " set to " << actual_value);
+      RCLCPP_INFO_STREAM(logger_, " - " << feature_str << " set to " << actual_value);
     }
     else
     {
-      ROS_WARN_STREAM(" - Tried to set " << feature_str << " to " << val_in << " but the camera used " << actual_value
+      RCLCPP_WARN_STREAM(logger_, " - Tried to set " << feature_str << " to " << val_in << " but the camera used " << actual_value
                                          << " instead");
       val_out = static_cast<Std_Type>(actual_value);
     }
@@ -601,11 +620,11 @@ void AvtVimbaCamera::configureFeature(const std::string& feature_str, const std:
     getFeatureValue(feature_str, actual_value);
     if (val_in == actual_value)
     {
-      ROS_INFO_STREAM(" - " << feature_str << " set to " << actual_value);
+      RCLCPP_INFO_STREAM(logger_, " - " << feature_str << " set to " << actual_value);
     }
     else
     {
-      ROS_WARN_STREAM(" - Tried to set " << feature_str << " to " << val_in << " but the camera used " << actual_value
+      RCLCPP_WARN_STREAM(logger_, " - Tried to set " << feature_str << " to " << val_in << " but the camera used " << actual_value
                                          << " instead");
       val_out = actual_value;
     }
@@ -634,20 +653,22 @@ bool AvtVimbaCamera::runCommand(const std::string& command_str)
         {
           break;
         }
-        ROS_DEBUG_STREAM_THROTTLE(1, "Waiting for command " << command_str.c_str() << "...");
+        // RCLCPP_DEBUG_STREAM_THROTTLE(logger_, 1, "Waiting for command " << command_str.c_str() << "...");
+        RCLCPP_DEBUG_STREAM_THROTTLE(logger_, clock_, 1000, "Waiting for command " << command_str.c_str() << "...");
+
       } while (false == is_command_done);
-      ROS_DEBUG_STREAM("Command " << command_str.c_str() << " done!");
+      RCLCPP_DEBUG_STREAM(logger_, "Command " << command_str.c_str() << " done!");
       return true;
     }
     else
     {
-      ROS_WARN_STREAM("Could not run command " << command_str << ". Error: " << api_.errorCodeToMessage(err));
+      RCLCPP_WARN_STREAM(logger_, "Could not run command " << command_str << ". Error: " << api_.errorCodeToMessage(err));
       return false;
     }
   }
   else
   {
-    ROS_WARN_STREAM("Could not get feature command " << command_str << ". Error: " << api_.errorCodeToMessage(err));
+    RCLCPP_WARN_STREAM(logger_, "Could not get feature command " << command_str << ". Error: " << api_.errorCodeToMessage(err));
     return false;
   }
 }
@@ -834,365 +855,390 @@ void AvtVimbaCamera::printAllCameraFeatures(const CameraPtr& camera)
   }
 }
 
-void AvtVimbaCamera::updateConfig(Config& config)
+void AvtVimbaCamera::initConfig(rclcpp::Node* nh)
 {
-  std::unique_lock<std::mutex> lock(config_mutex_);
+  rcl_interfaces::msg::IntegerRange int_range;
+  int_range.from_value = 0;
+  int_range.step = 1;
+  int_range.to_value = 255;
 
-  if (streaming_)
-  {
-    stopImaging();
-    ros::Duration(0.5).sleep();  // sleep for half a second
-  }
+  rcl_interfaces::msg::FloatingPointRange float_range;
+  float_range.from_value = 0.0;
+  float_range.step = 1.0;
+  float_range.to_value = 100.0;
 
-  if (on_init_)
-  {
-    config_ = config;
-  }
-  diagnostic_msg_ = "Updating configuration";
-
-  updateExposureConfig(config);
-  updateGainConfig(config);
-  updateWhiteBalanceConfig(config);
-  updateImageModeConfig(config);
-  updateROIConfig(config);
-  updateBandwidthConfig(config);
-  updateGPIOConfig(config);
-  updatePtpModeConfig(config);
-  updatePixelFormatConfig(config);
-  updateAcquisitionConfig(config);
-  updateIrisConfig(config);
-  config_ = config;
-
-  if (on_init_)
-  {
-    on_init_ = false;
-  }
-
-  startImaging();
+  rcl_interfaces::msg::ParameterDescriptor acquisition_rate_descriptor;
+  acquisition_rate_descriptor.description = "The desired camera frame rate.";
+  float_range.to_value = 40.0;
+  acquisition_rate_descriptor.floating_point_range.push_back(float_range);
+  nh->declare_parameter<float>("acquisition_rate", 10.0, acquisition_rate_descriptor);
 }
 
-/** Change the Trigger configuration */
-void AvtVimbaCamera::updateAcquisitionConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating Acquisition and Trigger config:");
-  }
+// rcl_interfaces::msg::SetParametersResult AvtVimbaCamera::updateConfig(rclcpp::Parameter param)
+// {
+//   configureFeature("TriggerMode", config.trigger_mode, config.trigger_mode);
+// }
 
-  if (config.acquisition_mode != config_.acquisition_mode || on_init_)
-  {
-    configureFeature("AcquisitionMode", config.acquisition_mode, config.acquisition_mode);
-  }
-  if (config.acquisition_rate != config_.acquisition_rate || on_init_)
-  {
-    configureFeature("AcquisitionFrameRateAbs", static_cast<float>(config.acquisition_rate), config.acquisition_rate);
-  }
-  if (config.trigger_mode != config_.trigger_mode || on_init_)
-  {
-    configureFeature("TriggerMode", config.trigger_mode, config.trigger_mode);
-  }
-  if (config.trigger_selector != config_.trigger_selector || on_init_)
-  {
-    configureFeature("TriggerSelector", config.trigger_selector, config.trigger_selector);
-  }
-  if (config.trigger_source != config_.trigger_source || on_init_)
-  {
-    configureFeature("TriggerSource", config.trigger_source, config.trigger_source);
-  }
-  if (config.trigger_activation != config_.trigger_activation || on_init_)
-  {
-    configureFeature("TriggerActivation", config.trigger_activation, config.trigger_activation);
-  }
-  if (config.trigger_delay != config_.trigger_delay || on_init_)
-  {
-    configureFeature("TriggerDelayAbs", static_cast<float>(config.trigger_delay), config.trigger_delay);
-  }
-  if (config.action_device_key != config_.action_device_key || on_init_)
-  {
-    configureFeature("ActionDeviceKey", static_cast<VmbInt64_t>(config.action_device_key), config.action_device_key);
-  }
-  if (config.action_group_key != config_.action_group_key || on_init_)
-  {
-    configureFeature("ActionGroupKey", static_cast<VmbInt64_t>(config.action_group_key), config.action_group_key);
-  }
-  if (config.action_group_mask != config_.action_group_mask || on_init_)
-  {
-    configureFeature("ActionGroupMask", static_cast<VmbInt64_t>(config.action_group_mask), config.action_group_mask);
-  }
-}
+// void AvtVimbaCamera::updateConfig(Config& config)
+// {
+//   std::unique_lock<std::mutex> lock(config_mutex_);
 
-/* Update the Iris config */
-void AvtVimbaCamera::updateIrisConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating Iris config:");
-  }
+//   if (streaming_)
+//   {
+//     stopImaging();
+//     // ros::Duration(0.5).sleep();  // sleep for half a second
+//     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+//   }
 
-  if (config.iris_auto_target != config_.iris_auto_target || on_init_)
-  {
-    configureFeature("IrisAutoTarget", static_cast<VmbInt64_t>(config.iris_auto_target), config.iris_auto_target);
-  }
-  if (config.iris_mode != config_.iris_mode || on_init_)
-  {
-    configureFeature("IrisMode", config.iris_mode, config.iris_mode);
-  }
-  if (config.iris_video_level_max != config_.iris_video_level_max || on_init_)
-  {
-    configureFeature("IrisVideoLevelMax", static_cast<VmbInt64_t>(config.iris_video_level_max),
-                     config.iris_video_level_max);
-  }
-  if (config.iris_video_level_min != config_.iris_video_level_min || on_init_)
-  {
-    configureFeature("IrisVideoLevelMin", static_cast<VmbInt64_t>(config.iris_video_level_min),
-                     config.iris_video_level_min);
-  }
-}
+//   if (on_init_)
+//   {
+//     config_ = config;
+//   }
+//   diagnostic_msg_ = "Updating configuration";
 
-/** Change the Exposure configuration */
-void AvtVimbaCamera::updateExposureConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating Exposure config:");
-  }
+//   updateExposureConfig(config);
+//   updateGainConfig(config);
+//   updateWhiteBalanceConfig(config);
+//   updateImageModeConfig(config);
+//   updateROIConfig(config);
+//   updateBandwidthConfig(config);
+//   updateGPIOConfig(config);
+//   updatePtpModeConfig(config);
+//   updatePixelFormatConfig(config);
+//   updateAcquisitionConfig(config);
+//   updateIrisConfig(config);
+//   config_ = config;
 
-  if (config.exposure != config_.exposure || on_init_)
-  {
-    configureFeature("ExposureTimeAbs", static_cast<float>(config.exposure), config.exposure);
-  }
-  if (config.exposure_auto != config_.exposure_auto || on_init_)
-  {
-    configureFeature("ExposureAuto", config.exposure_auto, config.exposure_auto);
-  }
-  if (config.exposure_auto_alg != config_.exposure_auto_alg || on_init_)
-  {
-    configureFeature("ExposureAutoAlg", config.exposure_auto_alg, config.exposure_auto_alg);
-  }
-  if (config.exposure_auto_tol != config_.exposure_auto_tol || on_init_)
-  {
-    configureFeature("ExposureAutoAdjustTol", static_cast<VmbInt64_t>(config.exposure_auto_tol),
-                     config.exposure_auto_tol);
-  }
-  if (config.exposure_auto_max != config_.exposure_auto_max || on_init_)
-  {
-    configureFeature("ExposureAutoMax", static_cast<VmbInt64_t>(config.exposure_auto_max), config.exposure_auto_max);
-  }
-  if (config.exposure_auto_min != config_.exposure_auto_min || on_init_)
-  {
-    configureFeature("ExposureAutoMin", static_cast<VmbInt64_t>(config.exposure_auto_min), config.exposure_auto_min);
-  }
-  if (config.exposure_auto_outliers != config_.exposure_auto_outliers || on_init_)
-  {
-    configureFeature("ExposureAutoOutliers", static_cast<VmbInt64_t>(config.exposure_auto_outliers),
-                     config.exposure_auto_outliers);
-  }
-  if (config.exposure_auto_rate != config_.exposure_auto_rate || on_init_)
-  {
-    configureFeature("ExposureAutoRate", static_cast<VmbInt64_t>(config.exposure_auto_rate), config.exposure_auto_rate);
-  }
-  if (config.exposure_auto_target != config_.exposure_auto_target || on_init_)
-  {
-    configureFeature("ExposureAutoTarget", static_cast<VmbInt64_t>(config.exposure_auto_target),
-                     config.exposure_auto_target);
-  }
-}
+//   if (on_init_)
+//   {
+//     on_init_ = false;
+//   }
 
-/** Change the Gain configuration */
-void AvtVimbaCamera::updateGainConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating Gain config:");
-  }
+//   startImaging();
+// }
 
-  if (config.gain != config_.gain || on_init_)
-  {
-    configureFeature("Gain", static_cast<float>(config.gain), config.gain);
-  }
-  if (config.gain_auto != config_.gain_auto || on_init_)
-  {
-    configureFeature("GainAuto", config.gain_auto, config.gain_auto);
-  }
-  if (config.gain_auto_adjust_tol != config_.gain_auto_adjust_tol || on_init_)
-  {
-    configureFeature("GainAutoAdjustTol", static_cast<VmbInt64_t>(config.gain_auto_adjust_tol),
-                     config.gain_auto_adjust_tol);
-  }
-  if (config.gain_auto_max != config_.gain_auto_max || on_init_)
-  {
-    configureFeature("GainAutoMax", static_cast<float>(config.gain_auto_max), config.gain_auto_max);
-  }
-  if (config.gain_auto_min != config_.gain_auto_min || on_init_)
-  {
-    configureFeature("GainAutoMin", static_cast<float>(config.gain_auto_min), config.gain_auto_min);
-  }
-  if (config.gain_auto_outliers != config_.gain_auto_outliers || on_init_)
-  {
-    configureFeature("GainAutoOutliers", static_cast<VmbInt64_t>(config.gain_auto_outliers), config.gain_auto_outliers);
-  }
-  if (config.gain_auto_rate != config_.gain_auto_rate || on_init_)
-  {
-    configureFeature("GainAutoRate", static_cast<VmbInt64_t>(config.gain_auto_rate), config.gain_auto_rate);
-  }
-  if (config.gain_auto_target != config_.gain_auto_target || on_init_)
-  {
-    configureFeature("GainAutoTarget", static_cast<VmbInt64_t>(config.gain_auto_target), config.gain_auto_target);
-  }
-}
+// /** Change the Trigger configuration */
+// void AvtVimbaCamera::updateAcquisitionConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating Acquisition and Trigger config:");
+//   }
 
-/** Change the White Balance configuration */
-void AvtVimbaCamera::updateWhiteBalanceConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating White Balance config:");
-  }
+//   if (config.acquisition_mode != config_.acquisition_mode || on_init_)
+//   {
+//     configureFeature("AcquisitionMode", config.acquisition_mode, config.acquisition_mode);
+//   }
+//   if (config.acquisition_rate != config_.acquisition_rate || on_init_)
+//   {
+//     configureFeature("AcquisitionFrameRateAbs", static_cast<float>(config.acquisition_rate), config.acquisition_rate);
+//   }
+//   if (config.trigger_mode != config_.trigger_mode || on_init_)
+//   {
+//     configureFeature("TriggerMode", config.trigger_mode, config.trigger_mode);
+//   }
+//   if (config.trigger_selector != config_.trigger_selector || on_init_)
+//   {
+//     configureFeature("TriggerSelector", config.trigger_selector, config.trigger_selector);
+//   }
+//   if (config.trigger_source != config_.trigger_source || on_init_)
+//   {
+//     configureFeature("TriggerSource", config.trigger_source, config.trigger_source);
+//   }
+//   if (config.trigger_activation != config_.trigger_activation || on_init_)
+//   {
+//     configureFeature("TriggerActivation", config.trigger_activation, config.trigger_activation);
+//   }
+//   if (config.trigger_delay != config_.trigger_delay || on_init_)
+//   {
+//     configureFeature("TriggerDelayAbs", static_cast<float>(config.trigger_delay), config.trigger_delay);
+//   }
+//   if (config.action_device_key != config_.action_device_key || on_init_)
+//   {
+//     configureFeature("ActionDeviceKey", static_cast<VmbInt64_t>(config.action_device_key), config.action_device_key);
+//   }
+//   if (config.action_group_key != config_.action_group_key || on_init_)
+//   {
+//     configureFeature("ActionGroupKey", static_cast<VmbInt64_t>(config.action_group_key), config.action_group_key);
+//   }
+//   if (config.action_group_mask != config_.action_group_mask || on_init_)
+//   {
+//     configureFeature("ActionGroupMask", static_cast<VmbInt64_t>(config.action_group_mask), config.action_group_mask);
+//   }
+// }
 
-  if (config.balance_ratio_abs != config_.balance_ratio_abs || on_init_)
-  {
-    configureFeature("BalanceRatioAbs", static_cast<float>(config.balance_ratio_abs), config.balance_ratio_abs);
-  }
-  if (config.balance_ratio_selector != config_.balance_ratio_selector || on_init_)
-  {
-    configureFeature("BalanceRatioSelector", config.balance_ratio_selector, config.balance_ratio_selector);
-  }
-  if (config.whitebalance_auto != config_.whitebalance_auto || on_init_)
-  {
-    configureFeature("BalanceWhiteAuto", config.whitebalance_auto, config.whitebalance_auto);
-  }
-  if (config.whitebalance_auto_tol != config_.whitebalance_auto_tol || on_init_)
-  {
-    configureFeature("BalanceWhiteAutoAdjustTol", static_cast<VmbInt64_t>(config.whitebalance_auto_tol),
-                     config.whitebalance_auto_tol);
-  }
-  if (config.whitebalance_auto_rate != config_.whitebalance_auto_rate || on_init_)
-  {
-    configureFeature("BalanceWhiteAutoRate", static_cast<VmbInt64_t>(config.whitebalance_auto_rate),
-                     config.whitebalance_auto_rate);
-  }
-}
+// /* Update the Iris config */
+// void AvtVimbaCamera::updateIrisConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating Iris config:");
+//   }
 
-/** Change the Binning and Decimation configuration */
-void AvtVimbaCamera::updatePtpModeConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating PTP config:");
-  }
+//   if (config.iris_auto_target != config_.iris_auto_target || on_init_)
+//   {
+//     configureFeature("IrisAutoTarget", static_cast<VmbInt64_t>(config.iris_auto_target), config.iris_auto_target);
+//   }
+//   if (config.iris_mode != config_.iris_mode || on_init_)
+//   {
+//     configureFeature("IrisMode", config.iris_mode, config.iris_mode);
+//   }
+//   if (config.iris_video_level_max != config_.iris_video_level_max || on_init_)
+//   {
+//     configureFeature("IrisVideoLevelMax", static_cast<VmbInt64_t>(config.iris_video_level_max),
+//                      config.iris_video_level_max);
+//   }
+//   if (config.iris_video_level_min != config_.iris_video_level_min || on_init_)
+//   {
+//     configureFeature("IrisVideoLevelMin", static_cast<VmbInt64_t>(config.iris_video_level_min),
+//                      config.iris_video_level_min);
+//   }
+// }
 
-  if (config.ptp_mode != config_.ptp_mode || on_init_)
-  {
-    // configureFeature("PtpMode", config.ptp_mode, config.ptp_mode);
-    configureFeature("PtpMode", config.ptp_mode, config.ptp_mode);
-  }
-}
+// /** Change the Exposure configuration */
+// void AvtVimbaCamera::updateExposureConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating Exposure config:");
+//   }
 
-/** Change the Binning and Decimation configuration */
-void AvtVimbaCamera::updateImageModeConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating Image Mode config:");
-  }
+//   if (config.exposure != config_.exposure || on_init_)
+//   {
+//     configureFeature("ExposureTimeAbs", static_cast<float>(config.exposure), config.exposure);
+//   }
+//   if (config.exposure_auto != config_.exposure_auto || on_init_)
+//   {
+//     configureFeature("ExposureAuto", config.exposure_auto, config.exposure_auto);
+//   }
+//   if (config.exposure_auto_alg != config_.exposure_auto_alg || on_init_)
+//   {
+//     configureFeature("ExposureAutoAlg", config.exposure_auto_alg, config.exposure_auto_alg);
+//   }
+//   if (config.exposure_auto_tol != config_.exposure_auto_tol || on_init_)
+//   {
+//     configureFeature("ExposureAutoAdjustTol", static_cast<VmbInt64_t>(config.exposure_auto_tol),
+//                      config.exposure_auto_tol);
+//   }
+//   if (config.exposure_auto_max != config_.exposure_auto_max || on_init_)
+//   {
+//     configureFeature("ExposureAutoMax", static_cast<VmbInt64_t>(config.exposure_auto_max), config.exposure_auto_max);
+//   }
+//   if (config.exposure_auto_min != config_.exposure_auto_min || on_init_)
+//   {
+//     configureFeature("ExposureAutoMin", static_cast<VmbInt64_t>(config.exposure_auto_min), config.exposure_auto_min);
+//   }
+//   if (config.exposure_auto_outliers != config_.exposure_auto_outliers || on_init_)
+//   {
+//     configureFeature("ExposureAutoOutliers", static_cast<VmbInt64_t>(config.exposure_auto_outliers),
+//                      config.exposure_auto_outliers);
+//   }
+//   if (config.exposure_auto_rate != config_.exposure_auto_rate || on_init_)
+//   {
+//     configureFeature("ExposureAutoRate", static_cast<VmbInt64_t>(config.exposure_auto_rate), config.exposure_auto_rate);
+//   }
+//   if (config.exposure_auto_target != config_.exposure_auto_target || on_init_)
+//   {
+//     configureFeature("ExposureAutoTarget", static_cast<VmbInt64_t>(config.exposure_auto_target),
+//                      config.exposure_auto_target);
+//   }
+// }
 
-  if (config.decimation_x != config_.decimation_x || on_init_)
-  {
-    configureFeature("DecimationHorizontal", static_cast<VmbInt64_t>(config.decimation_x), config.decimation_x);
-  }
-  if (config.decimation_y != config_.decimation_y || on_init_)
-  {
-    configureFeature("DecimationVertical", static_cast<VmbInt64_t>(config.decimation_y), config.decimation_y);
-  }
-  if (config.binning_x != config_.binning_x || on_init_)
-  {
-    configureFeature("BinningHorizontal", static_cast<VmbInt64_t>(config.binning_x), config.binning_x);
-  }
-  if (config.binning_y != config_.binning_y || on_init_)
-  {
-    configureFeature("BinningVertical", static_cast<VmbInt64_t>(config.binning_y), config.binning_y);
-  }
-}
+// /** Change the Gain configuration */
+// void AvtVimbaCamera::updateGainConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating Gain config:");
+//   }
 
-/** Change the ROI configuration */
-void AvtVimbaCamera::updateROIConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating ROI config:");
-  }
+//   if (config.gain != config_.gain || on_init_)
+//   {
+//     configureFeature("Gain", static_cast<float>(config.gain), config.gain);
+//   }
+//   if (config.gain_auto != config_.gain_auto || on_init_)
+//   {
+//     configureFeature("GainAuto", config.gain_auto, config.gain_auto);
+//   }
+//   if (config.gain_auto_adjust_tol != config_.gain_auto_adjust_tol || on_init_)
+//   {
+//     configureFeature("GainAutoAdjustTol", static_cast<VmbInt64_t>(config.gain_auto_adjust_tol),
+//                      config.gain_auto_adjust_tol);
+//   }
+//   if (config.gain_auto_max != config_.gain_auto_max || on_init_)
+//   {
+//     configureFeature("GainAutoMax", static_cast<float>(config.gain_auto_max), config.gain_auto_max);
+//   }
+//   if (config.gain_auto_min != config_.gain_auto_min || on_init_)
+//   {
+//     configureFeature("GainAutoMin", static_cast<float>(config.gain_auto_min), config.gain_auto_min);
+//   }
+//   if (config.gain_auto_outliers != config_.gain_auto_outliers || on_init_)
+//   {
+//     configureFeature("GainAutoOutliers", static_cast<VmbInt64_t>(config.gain_auto_outliers), config.gain_auto_outliers);
+//   }
+//   if (config.gain_auto_rate != config_.gain_auto_rate || on_init_)
+//   {
+//     configureFeature("GainAutoRate", static_cast<VmbInt64_t>(config.gain_auto_rate), config.gain_auto_rate);
+//   }
+//   if (config.gain_auto_target != config_.gain_auto_target || on_init_)
+//   {
+//     configureFeature("GainAutoTarget", static_cast<VmbInt64_t>(config.gain_auto_target), config.gain_auto_target);
+//   }
+// }
 
-  if (config.width != config_.width || on_init_)
-  {
-    configureFeature("Width", static_cast<VmbInt64_t>(config.width), config.width);
-  }
-  if (config.height != config_.height || on_init_)
-  {
-    configureFeature("Height", static_cast<VmbInt64_t>(config.height), config.height);
-  }
-  if (config.offset_x != config_.offset_x || on_init_)
-  {
-    configureFeature("OffsetX", static_cast<VmbInt64_t>(config.offset_x), config.offset_x);
-  }
-  if (config.offset_y != config_.offset_y || on_init_)
-  {
-    configureFeature("OffsetY", static_cast<VmbInt64_t>(config.offset_y), config.offset_y);
-  }
-}
+// /** Change the White Balance configuration */
+// void AvtVimbaCamera::updateWhiteBalanceConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating White Balance config:");
+//   }
 
-/** Change the Bandwidth configuration */
-void AvtVimbaCamera::updateBandwidthConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating Bandwidth config:");
-  }
+//   if (config.balance_ratio_abs != config_.balance_ratio_abs || on_init_)
+//   {
+//     configureFeature("BalanceRatioAbs", static_cast<float>(config.balance_ratio_abs), config.balance_ratio_abs);
+//   }
+//   if (config.balance_ratio_selector != config_.balance_ratio_selector || on_init_)
+//   {
+//     configureFeature("BalanceRatioSelector", config.balance_ratio_selector, config.balance_ratio_selector);
+//   }
+//   if (config.whitebalance_auto != config_.whitebalance_auto || on_init_)
+//   {
+//     configureFeature("BalanceWhiteAuto", config.whitebalance_auto, config.whitebalance_auto);
+//   }
+//   if (config.whitebalance_auto_tol != config_.whitebalance_auto_tol || on_init_)
+//   {
+//     configureFeature("BalanceWhiteAutoAdjustTol", static_cast<VmbInt64_t>(config.whitebalance_auto_tol),
+//                      config.whitebalance_auto_tol);
+//   }
+//   if (config.whitebalance_auto_rate != config_.whitebalance_auto_rate || on_init_)
+//   {
+//     configureFeature("BalanceWhiteAutoRate", static_cast<VmbInt64_t>(config.whitebalance_auto_rate),
+//                      config.whitebalance_auto_rate);
+//   }
+// }
 
-  if (config.stream_bytes_per_second != config_.stream_bytes_per_second || on_init_)
-  {
-    configureFeature("StreamBytesPerSecond", static_cast<VmbInt64_t>(config.stream_bytes_per_second),
-                     config.stream_bytes_per_second);
-  }
-}
+// /** Change the Binning and Decimation configuration */
+// void AvtVimbaCamera::updatePtpModeConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating PTP config:");
+//   }
 
-/** Change the Pixel Format configuration */
-void AvtVimbaCamera::updatePixelFormatConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating PixelFormat config:");
-  }
+//   if (config.ptp_mode != config_.ptp_mode || on_init_)
+//   {
+//     // configureFeature("PtpMode", config.ptp_mode, config.ptp_mode);
+//     configureFeature("PtpMode", config.ptp_mode, config.ptp_mode);
+//   }
+// }
 
-  if (config.pixel_format != config_.pixel_format || on_init_)
-  {
-    configureFeature("PixelFormat", config.pixel_format, config.pixel_format);
-  }
-}
+// /** Change the Binning and Decimation configuration */
+// void AvtVimbaCamera::updateImageModeConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating Image Mode config:");
+//   }
 
-/** Change the GPIO configuration */
-void AvtVimbaCamera::updateGPIOConfig(Config& config)
-{
-  if (on_init_)
-  {
-    ROS_INFO("Updating GPIO config:");
-  }
-  if (config.sync_in_selector != config_.sync_in_selector || on_init_)
-  {
-    configureFeature("SyncInSelector", config.sync_in_selector, config.sync_in_selector);
-  }
-  if (config.sync_out_polarity != config_.sync_out_polarity || on_init_)
-  {
-    configureFeature("SyncOutPolarity", config.sync_out_polarity, config.sync_out_polarity);
-  }
-  if (config.sync_out_selector != config_.sync_out_selector || on_init_)
-  {
-    configureFeature("SyncOutSelector", config.sync_out_selector, config.sync_out_selector);
-  }
-  if (config.sync_out_source != config_.sync_out_source || on_init_)
-  {
-    configureFeature("SyncOutSource", config.sync_out_source, config.sync_out_source);
-  }
-}
+//   if (config.decimation_x != config_.decimation_x || on_init_)
+//   {
+//     configureFeature("DecimationHorizontal", static_cast<VmbInt64_t>(config.decimation_x), config.decimation_x);
+//   }
+//   if (config.decimation_y != config_.decimation_y || on_init_)
+//   {
+//     configureFeature("DecimationVertical", static_cast<VmbInt64_t>(config.decimation_y), config.decimation_y);
+//   }
+//   if (config.binning_x != config_.binning_x || on_init_)
+//   {
+//     configureFeature("BinningHorizontal", static_cast<VmbInt64_t>(config.binning_x), config.binning_x);
+//   }
+//   if (config.binning_y != config_.binning_y || on_init_)
+//   {
+//     configureFeature("BinningVertical", static_cast<VmbInt64_t>(config.binning_y), config.binning_y);
+//   }
+// }
+
+// /** Change the ROI configuration */
+// void AvtVimbaCamera::updateROIConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating ROI config:");
+//   }
+
+//   if (config.width != config_.width || on_init_)
+//   {
+//     configureFeature("Width", static_cast<VmbInt64_t>(config.width), config.width);
+//   }
+//   if (config.height != config_.height || on_init_)
+//   {
+//     configureFeature("Height", static_cast<VmbInt64_t>(config.height), config.height);
+//   }
+//   if (config.offset_x != config_.offset_x || on_init_)
+//   {
+//     configureFeature("OffsetX", static_cast<VmbInt64_t>(config.offset_x), config.offset_x);
+//   }
+//   if (config.offset_y != config_.offset_y || on_init_)
+//   {
+//     configureFeature("OffsetY", static_cast<VmbInt64_t>(config.offset_y), config.offset_y);
+//   }
+// }
+
+// /** Change the Bandwidth configuration */
+// void AvtVimbaCamera::updateBandwidthConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating Bandwidth config:");
+//   }
+
+//   if (config.stream_bytes_per_second != config_.stream_bytes_per_second || on_init_)
+//   {
+//     configureFeature("StreamBytesPerSecond", static_cast<VmbInt64_t>(config.stream_bytes_per_second),
+//                      config.stream_bytes_per_second);
+//   }
+// }
+
+// /** Change the Pixel Format configuration */
+// void AvtVimbaCamera::updatePixelFormatConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating PixelFormat config:");
+//   }
+
+//   if (config.pixel_format != config_.pixel_format || on_init_)
+//   {
+//     configureFeature("PixelFormat", config.pixel_format, config.pixel_format);
+//   }
+// }
+
+// /** Change the GPIO configuration */
+// void AvtVimbaCamera::updateGPIOConfig(Config& config)
+// {
+//   if (on_init_)
+//   {
+//     RCLCPP_INFO(logger_, "Updating GPIO config:");
+//   }
+//   if (config.sync_in_selector != config_.sync_in_selector || on_init_)
+//   {
+//     configureFeature("SyncInSelector", config.sync_in_selector, config.sync_in_selector);
+//   }
+//   if (config.sync_out_polarity != config_.sync_out_polarity || on_init_)
+//   {
+//     configureFeature("SyncOutPolarity", config.sync_out_polarity, config.sync_out_polarity);
+//   }
+//   if (config.sync_out_selector != config_.sync_out_selector || on_init_)
+//   {
+//     configureFeature("SyncOutSelector", config.sync_out_selector, config.sync_out_selector);
+//   }
+//   if (config.sync_out_source != config_.sync_out_source || on_init_)
+//   {
+//     configureFeature("SyncOutSource", config.sync_out_source, config.sync_out_source);
+//   }
+// }
 
 void AvtVimbaCamera::getCurrentState(diagnostic_updater::DiagnosticStatusWrapper& stat)
 {
@@ -1203,22 +1249,22 @@ void AvtVimbaCamera::getCurrentState(diagnostic_updater::DiagnosticStatusWrapper
   switch (camera_state_)
   {
     case OPENING:
-      stat.summary(diagnostic_msgs::DiagnosticStatus::WARN, "Opening camera");
+      stat.summary(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Opening camera");
       break;
     case IDLE:
-      stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Camera is idle");
+      stat.summary(diagnostic_msgs::msg::DiagnosticStatus::OK, "Camera is idle");
       break;
     case OK:
-      stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Camera is streaming");
+      stat.summary(diagnostic_msgs::msg::DiagnosticStatus::OK, "Camera is streaming");
       break;
     case CAMERA_NOT_FOUND:
-      stat.summaryf(diagnostic_msgs::DiagnosticStatus::ERROR, "Cannot find requested camera %s", guid_.c_str());
+      stat.summaryf(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Cannot find requested camera %s", guid_.c_str());
       break;
     case FORMAT_ERROR:
-      stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Problem retrieving frame");
+      stat.summary(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Problem retrieving frame");
       break;
     case ERROR:
-      stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Camera has encountered an error");
+      stat.summary(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Camera has encountered an error");
       break;
     default:
       break;

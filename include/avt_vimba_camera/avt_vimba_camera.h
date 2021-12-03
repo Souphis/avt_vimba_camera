@@ -35,12 +35,12 @@
 
 #include <VimbaCPP/Include/VimbaCPP.h>
 
-#include <avt_vimba_camera/AvtVimbaCameraConfig.h>
+// #include <avt_vimba_camera/AvtVimbaCameraConfig.h>
 #include <avt_vimba_camera/frame_observer.h>
 #include <avt_vimba_camera/avt_vimba_api.h>
 
-#include <diagnostic_updater/diagnostic_updater.h>
-#include <diagnostic_updater/publisher.h>
+#include <diagnostic_updater/diagnostic_updater.hpp>
+#include <diagnostic_updater/publisher.hpp>
 
 #include <string>
 #include <mutex>
@@ -78,17 +78,19 @@ enum CameraState
 class AvtVimbaCamera
 {
 public:
-  typedef avt_vimba_camera::AvtVimbaCameraConfig Config;
+  // typedef avt_vimba_camera::AvtVimbaCameraConfig Config;
   typedef std::function<void(const FramePtr)> frameCallbackFunc;
 
-  AvtVimbaCamera();
-  AvtVimbaCamera(const std::string& name);
+  // AvtVimbaCamera();
+  AvtVimbaCamera(rclcpp::Node* owner_node);
+  // AvtVimbaCamera(const std::string& name);
 
   void start(const std::string& ip_str, const std::string& guid_str, const std::string& frame_id,
              bool print_all_features = false);
   void stop();
 
-  void updateConfig(Config& config);
+  void initConfig(rclcpp::Node* nh);
+  // void updateConfig(Config& config);
   void startImaging();
   void stopImaging();
 
@@ -112,8 +114,10 @@ public:
   }
 
 private:
-  Config config_;
+  // Config config_;
 
+  rclcpp::Logger logger_;
+  rclcpp::Clock clock_;
   AvtVimbaApi api_;
   // IFrame Observer
   SP_DECL(FrameObserver) frame_obs_ptr_;
@@ -156,17 +160,17 @@ private:
   int getTriggerModeInt(std::string mode_str);
   void printAllCameraFeatures(const CameraPtr& camera);
 
-  void updateAcquisitionConfig(Config& config);
-  void updateExposureConfig(Config& config);
-  void updateGainConfig(Config& config);
-  void updateWhiteBalanceConfig(Config& config);
-  void updateImageModeConfig(Config& config);
-  void updateROIConfig(Config& config);
-  void updateBandwidthConfig(Config& config);
-  void updatePixelFormatConfig(Config& config);
-  void updatePtpModeConfig(Config& config);
-  void updateGPIOConfig(Config& config);
-  void updateIrisConfig(Config& config);
+  // void updateAcquisitionConfig(Config& config);
+  // void updateExposureConfig(Config& config);
+  // void updateGainConfig(Config& config);
+  // void updateWhiteBalanceConfig(Config& config);
+  // void updateImageModeConfig(Config& config);
+  // void updateROIConfig(Config& config);
+  // void updateBandwidthConfig(Config& config);
+  // void updatePixelFormatConfig(Config& config);
+  // void updatePtpModeConfig(Config& config);
+  // void updateGPIOConfig(Config& config);
+  // void updateIrisConfig(Config& config);
 
   void getCurrentState(diagnostic_updater::DiagnosticStatusWrapper& stat);
 };

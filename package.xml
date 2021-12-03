@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>avt_vimba_camera</name>
   <version>1.0.0</version>
   <description>Camera driver for Allied Vision Technologies (AVT) cameras, based on their Vimba SDK.</description>
@@ -13,21 +13,29 @@
   <author email="miquel.massot@gmail.com">Miquel Massot</author>
   <maintainer email="software@autonomoustuff.com">AutonomouStuff Software Team</maintainer>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+
   <depend>camera_info_manager</depend>
   <depend>diagnostic_updater</depend>
-  <depend>dynamic_reconfigure</depend>
+  <depend>diagnostic_msgs</depend>
+  <!-- <depend>dynamic_reconfigure</depend> -->
   <depend>image_transport</depend>
   <depend>message_filters</depend>
-  <depend>roscpp</depend>
-  <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>nodelet</depend>
+
+
 
   <exec_depend>image_proc</exec_depend>
   <exec_depend>stereo_image_proc</exec_depend>
 
-  <export>
+  <export><build_type>ament_cmake</build_type></export>
+
+  <!-- <export>
     <nodelet plugin="${prefix}/plugins.xml" />
-  </export>
+  </export> -->
 </package>

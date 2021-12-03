@@ -35,10 +35,13 @@
 
 #include <VimbaCPP/Include/VimbaCPP.h>
 
-#include <ros/ros.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
-#include <sensor_msgs/fill_image.h>
+#include <rclcpp/rclcpp.hpp>
+// #include <sensor_msgs/Image.h>
+// #include <sensor_msgs/image_encodings.h>
+// #include <sensor_msgs/fill_image.h>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/image_encodings.hpp>
+#include <sensor_msgs/fill_image.hpp>
 
 #include <string>
 #include <map>
@@ -52,7 +55,7 @@ namespace avt_vimba_camera
 class AvtVimbaApi
 {
 public:
-  AvtVimbaApi() : vs(VimbaSystem::GetInstance())
+  AvtVimbaApi(const rclcpp::Logger& logger) : vs(VimbaSystem::GetInstance()), logger_(logger)
   {
   }
 
@@ -61,12 +64,12 @@ public:
     VmbErrorType err = vs.Startup();
     if (VmbErrorSuccess == err)
     {
-      ROS_INFO_STREAM("[Vimba System]: AVT Vimba System initialized successfully");
+      RCLCPP_INFO_STREAM(logger_, "[Vimba System]: AVT Vimba System initialized successfully");
       listAvailableCameras();
     }
     else
     {
-      ROS_ERROR_STREAM("[Vimba System]: Could not start Vimba system: " << errorCodeToMessage(err));
+      RCLCPP_ERROR_STREAM(logger_, "[Vimba System]: Could not start Vimba system: " << errorCodeToMessage(err));
     }
   }
 
@@ -141,7 +144,7 @@ public:
       return "Undefined access";
   }
 
-  bool frameToImage(const FramePtr vimba_frame_ptr, sensor_msgs::Image& image)
+  bool frameToImage(const FramePtr vimba_frame_ptr, sensor_msgs::msg::Image& image)
   {
     VmbPixelFormatType pixel_format;
     VmbUint32_t width, height, nSize;
@@ -220,7 +223,7 @@ public:
     else if (pixel_format == VmbPixelFormatRgb16)
       encoding = sensor_msgs::image_encodings::TYPE_16UC3;
     else
-      ROS_WARN("Received frame with unsupported pixel format %d", pixel_format);
+      RCLCPP_WARN(logger_, "Received frame with unsupported pixel format %d", pixel_format);
     if (encoding == "")
       return false;
 
@@ -233,7 +236,7 @@ public:
     }
     else
     {
-      ROS_ERROR_STREAM("[" << ros::this_node::getName() << "]: Could not GetImage. "
+      RCLCPP_ERROR_STREAM(logger_,"Could not GetImage. "
                            << "\n Error: " << errorCodeToMessage(err));
     }
     return res;
@@ -241,10 +244,11 @@ public:
 
 private:
   VimbaSystem& vs;
+  rclcpp::Logger logger_;
 
   void listAvailableCameras()
   {
-    ROS_INFO("Searching for cameras ...");
+    RCLCPP_INFO(logger_, "Searching for cameras ...");
     CameraPtrVector cameras;
     if (VmbErrorSuccess == vs.Startup())
     {
@@ -263,62 +267,62 @@ private:
           VmbErrorType err = camera->GetID(strID);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get camera ID. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get camera ID. Error code: " << err << "]");
           }
 
           err = camera->GetName(strName);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get camera name. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get camera name. Error code: " << err << "]");
           }
 
           err = camera->GetModel(strModelname);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get camera mode name. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get camera mode name. Error code: " << err << "]");
           }
 
           err = camera->GetSerialNumber(strSerialNumber);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get camera serial number. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get camera serial number. Error code: " << err << "]");
           }
 
           err = camera->GetInterfaceID(strInterfaceID);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get interface ID. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get interface ID. Error code: " << err << "]");
           }
 
           err = camera->GetInterfaceType(interfaceType);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get interface type. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get interface type. Error code: " << err << "]");
           }
 
           err = camera->GetPermittedAccess(accessType);
           if (VmbErrorSuccess != err)
           {
-            ROS_ERROR_STREAM("[Could not get access type. Error code: " << err << "]");
+            RCLCPP_ERROR_STREAM(logger_, "[Could not get access type. Error code: " << err << "]");
           }
 
-          ROS_INFO_STREAM("Found camera named " << strName << ":");
-          ROS_INFO_STREAM(" - Model Name     : " << strModelname);
-          ROS_INFO_STREAM(" - Camera ID      : " << strID);
-          ROS_INFO_STREAM(" - Serial Number  : " << strSerialNumber);
-          ROS_INFO_STREAM(" - Interface ID   : " << strInterfaceID);
-          ROS_INFO_STREAM(" - Interface type : " << interfaceToString(interfaceType));
-          ROS_INFO_STREAM(" - Access type    : " << accessModeToString(accessType));
+          RCLCPP_INFO_STREAM(logger_, "Found camera named " << strName << ":");
+          RCLCPP_INFO_STREAM(logger_, " - Model Name     : " << strModelname);
+          RCLCPP_INFO_STREAM(logger_, " - Camera ID      : " << strID);
+          RCLCPP_INFO_STREAM(logger_, " - Serial Number  : " << strSerialNumber);
+          RCLCPP_INFO_STREAM(logger_, " - Interface ID   : " << strInterfaceID);
+          RCLCPP_INFO_STREAM(logger_, " - Interface type : " << interfaceToString(interfaceType));
+          RCLCPP_INFO_STREAM(logger_, " - Access type    : " << accessModeToString(accessType));
         }
       }
       else
       {
-        ROS_WARN("Could not get cameras from Vimba System");
+        RCLCPP_WARN(logger_, "Could not get cameras from Vimba System");
       }
     }
     else
     {
-      ROS_WARN("Could not start Vimba System");
+      RCLCPP_WARN(logger_, "Could not start Vimba System");
     }
   }
 };

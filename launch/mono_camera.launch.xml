@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Driver parameters, these parameters affect the way the ROS driver works -->
+  <arg name="name" default="camera" doc="The name of the camera"/>
+  <arg name="ip" default="" doc="The IP for the camera to connect to"/>
+  <arg name="guid" default="" doc="The GUID for the camera to connect to"/>
+  <arg name="frame_id" default="$(var name)" doc="The frame id of the camera"/>
+  <arg name="use_measurement_time" default="false" doc="Use the measurement time from the camera"/>
+  <arg name="ptp_offset" default="-37" doc="Offset to add to the timestamp from the camera (s).
+    Useful for converting from TAI to UTC time. Only applies if use_measurement_time is true"/>
+  <!-- <arg name="camera_info_url" default="file://$(find avt_vimba_camera)/calibrations/calibration_example.yaml"/> -->
+  <arg name="print_all_features" default="false" doc="Show all camera features on the console during startup"/>
+  <arg name="image_proc" default="false" doc="Launch image_proc with driver"/>
+
+
+
+  <!-- <group>
+    <push-ros-namespace namespace="ssc"/> -->
+    <node pkg="avt_vimba_camera" exec="mono_camera_exec" name="mono_camera">
+      <!-- <remap from="/diagnostics" to="/ssc/diagnostics" />
+      <param name="deadzone" value="0.01"/>
+      <param name="autorepeat_rate" value="20.0"/> -->
+      <param name="name" value="$(var name)"/>
+      <param name="ip" value="$(var ip)"/>
+      <param name="guid" value="$(var guid)"/>
+      <param name="frame_id" value="$(var frame_id)"/>
+      <param name="use_measurement_time" value="$(var use_measurement_time)"/>
+    </node>
+
+    <!-- <node pkg="ssc_joystick" exec="ssc_joystick_exec" name="ssc_joystick" output="screen">
+      <param from="$(find-pkg-share ssc_joystick)/config/params.yaml"/>
+    </node> -->
+  <!-- </group> -->
+</launch>

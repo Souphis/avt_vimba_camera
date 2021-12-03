@@ -33,33 +33,34 @@
 #ifndef MONO_CAMERA_H
 #define MONO_CAMERA_H
 
-#include <avt_vimba_camera/avt_vimba_camera.h>
-#include <avt_vimba_camera/AvtVimbaCameraConfig.h>
-#include <avt_vimba_camera/avt_vimba_api.h>
+#include "avt_vimba_camera/avt_vimba_camera.h"
+// #include <avt_vimba_camera/AvtVimbaCameraConfig.h>
+#include "avt_vimba_camera/avt_vimba_api.h"
 
-#include <ros/ros.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <camera_info_manager/camera_info_manager.h>
-#include <image_transport/image_transport.h>
-#include <dynamic_reconfigure/server.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <camera_info_manager/camera_info_manager.hpp>
+#include <image_transport/image_transport.hpp>
+// #include <dynamic_reconfigure/server.h>
 
 #include <string>
 
 namespace avt_vimba_camera
 {
-class MonoCamera
+class MonoCameraNode : public rclcpp::Node
 {
 public:
-  MonoCamera(ros::NodeHandle& nh, ros::NodeHandle& nhp);
-  ~MonoCamera(void);
+  // MonoCameraNode(ros::NodeHandle& nh, ros::NodeHandle& nhp);
+  MonoCameraNode();
+  ~MonoCameraNode();
 
 private:
   AvtVimbaApi api_;
   AvtVimbaCamera cam_;
 
-  ros::NodeHandle nh_;
-  ros::NodeHandle nhp_;
+  // ros::NodeHandle nh_;
+  // ros::NodeHandle nhp_;
 
   std::string ip_;
   std::string guid_;
@@ -69,22 +70,29 @@ private:
   bool use_measurement_time_;
   int32_t ptp_offset_;
 
-  image_transport::ImageTransport it_;
-  image_transport::CameraPublisher pub_;
+  // image_transport::ImageTransport it_;
+  image_transport::CameraPublisher camera_info_pub_;
+  // image_transport::CameraPublisher pub_;
 
   std::shared_ptr<camera_info_manager::CameraInfoManager> info_man_;
 
   // Dynamic reconfigure
-  typedef avt_vimba_camera::AvtVimbaCameraConfig Config;
-  typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
-  ReconfigureServer reconfigure_server_;
+  // typedef avt_vimba_camera::AvtVimbaCameraConfig Config;
+  // typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
+  // ReconfigureServer reconfigure_server_;
 
   // Camera configuration
-  Config camera_config_;
+  // Config camera_config_;
+
+  void loadParams();
 
   void frameCallback(const FramePtr& vimba_frame_ptr);
-  void configure(Config& newconfig, uint32_t level);
-  void updateCameraInfo(const Config& config);
+
+  rcl_interfaces::msg::SetParametersResult parameterCallback(const std::vector<rclcpp::Parameter> &parameters);
+
+  // void configure(Config& newconfig, uint32_t level);
+  // void updateCameraInfo(const Config& config);
+  void updateCameraInfo();
 };
 }  // namespace avt_vimba_camera
 #endif
