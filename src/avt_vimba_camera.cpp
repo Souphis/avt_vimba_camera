@@ -857,21 +857,233 @@ void AvtVimbaCamera::printAllCameraFeatures(const CameraPtr& camera)
 
 void AvtVimbaCamera::initConfig(rclcpp::Node* nh)
 {
-  rcl_interfaces::msg::IntegerRange int_range;
-  int_range.from_value = 0;
-  int_range.step = 1;
-  int_range.to_value = 255;
+  // rcl_interfaces::msg::IntegerRange int_range;
+  // int_range.from_value = 0;
+  // int_range.step = 1;
+  // int_range.to_value = 255;
 
-  rcl_interfaces::msg::FloatingPointRange float_range;
-  float_range.from_value = 0.0;
-  float_range.step = 1.0;
-  float_range.to_value = 100.0;
+  // rcl_interfaces::msg::FloatingPointRange float_range;
+  // float_range.from_value = 0.0;
+  // float_range.step = 1.0;
+  // float_range.to_value = 100.0;
 
-  rcl_interfaces::msg::ParameterDescriptor acquisition_rate_descriptor;
-  acquisition_rate_descriptor.description = "The desired camera frame rate.";
-  float_range.to_value = 40.0;
-  acquisition_rate_descriptor.floating_point_range.push_back(float_range);
-  nh->declare_parameter<float>("acquisition_rate", 10.0, acquisition_rate_descriptor);
+  // rcl_interfaces::msg::ParameterDescriptor acquisition_rate_descriptor;
+  // acquisition_rate_descriptor.description = "The desired camera frame rate.";
+  // float_range.to_value = 40.0;
+  // acquisition_rate_descriptor.floating_point_range.push_back(float_range);
+  // nh->declare_parameter<float>("acquisition_rate", 10.0, acquisition_rate_descriptor);
+
+
+  // TODO: move this somewhere else (header)
+  std::string param_namespace = "camera/";
+
+  // TODO: check if vimba_camera_ptr_ is open/valid first!
+
+
+  VmbErrorType err;
+  FeaturePtrVector features;
+
+  // The static details of a feature
+  // std::string strDisplayName;    // The display name of the feature
+
+  VmbFeatureDataType eType;      // The data type of the feature
+
+  // The changeable value of a feature
+  VmbInt64_t nValue;
+  std::string strValue;
+
+  uint32_t writable_count = 0;
+
+  // Fetch all features of our cam
+  err = vimba_camera_ptr_->GetFeatures(features);
+  if (err == VmbErrorSuccess)
+  {
+    // Query all static details as well as the value of
+    // all fetched features and print them out.
+    for (FeaturePtrVector::const_iterator iter = features.begin(); features.end() != iter; ++iter)
+    {
+      std::string feature_name;
+      err = (*iter)->GetName(feature_name);
+      if (err != VmbErrorSuccess)
+      {
+        RCLCPP_ERROR_STREAM(logger_, "[Could not get feature Name. Error code: " << err << "]");
+        continue;
+      }
+
+      bool is_writable = false;
+      err = (*iter)->IsWritable(is_writable);
+      if (err != VmbErrorSuccess)
+      {
+        RCLCPP_ERROR_STREAM(logger_, "[Could not get write access. Error code: " << err << "]");
+      }
+      writable_count = (is_writable) ? writable_count + 1 : writable_count;
+      writable_features_[feature_name] = is_writable;
+
+
+      std::string annotated_description = "";
+
+      std::string strCategory;
+      err = (*iter)->GetCategory(strCategory);
+      if (err == VmbErrorSuccess && strCategory != "")
+      {
+        annotated_description += "[" + strCategory + "]";
+      }
+
+      std::string strUnit;
+      err = (*iter)->GetUnit(strUnit);
+      if (err == VmbErrorSuccess && strUnit != "")
+      {
+        annotated_description += "(Unit: " + strUnit + ")";
+      }
+
+      std::string strDescription;    // A long description of the feature
+      err = (*iter)->GetDescription(strDescription);
+      if (err == VmbErrorSuccess)
+      {
+        annotated_description += " " + strDescription;
+      }
+
+      // Set description
+      rcl_interfaces::msg::ParameterDescriptor descriptor;
+      descriptor.description = annotated_description;
+      descriptor.read_only = !is_writable;
+
+      err = (*iter)->GetDataType(eType);
+      if (err != VmbErrorSuccess)
+      {
+        std::cout << "[Could not get feature Data Type. Error code: " << err << "]" << std::endl;
+      }
+      else
+      {
+        switch (eType)
+        {
+          case VmbFeatureDataBool: {
+            bool initial_value = false;
+
+            (*iter)->GetValue(initial_value);
+            RCLCPP_INFO(logger_, "BOOL: %s", feature_name.c_str());
+
+            nh->declare_parameter<bool>(param_namespace + feature_name, initial_value, descriptor);
+            break;
+          }
+          case VmbFeatureDataInt: {
+            VmbInt64_t initial_value = 0;
+            VmbInt64_t minimum_value = std::numeric_limits<int64_t>::lowest();
+            VmbInt64_t maximum_value = std::numeric_limits<int64_t>::max();
+            VmbInt64_t step = 0.0;
+
+            (*iter)->GetValue(initial_value);
+            (*iter)->GetRange(minimum_value, maximum_value);
+            (*iter)->GetIncrement(step);
+
+            rcl_interfaces::msg::IntegerRange int_range;
+            int_range.from_value = minimum_value;
+            int_range.to_value = maximum_value;
+            int_range.step = step;
+            descriptor.integer_range.push_back(int_range);
+
+            nh->declare_parameter<int64_t>(param_namespace + feature_name, initial_value, descriptor);
+            break;
+          }
+          case VmbFeatureDataFloat: {
+            double initial_value = 0.0;
+            double minimum_value = std::numeric_limits<double>::lowest();
+            double maximum_value = std::numeric_limits<double>::max();
+            double step = 0.0;
+
+            (*iter)->GetValue(initial_value);
+            (*iter)->GetRange(minimum_value, maximum_value);
+            (*iter)->GetIncrement(step);
+
+            rcl_interfaces::msg::FloatingPointRange float_range;
+            float_range.from_value = minimum_value;
+            float_range.to_value = maximum_value;
+            float_range.step = step;
+            descriptor.floating_point_range.push_back(float_range);
+
+            nh->declare_parameter<double>(param_namespace + feature_name, initial_value, descriptor);
+            break;
+          }
+          case VmbFeatureDataString:{
+            std::string initial_value = "";
+
+            (*iter)->GetValue(initial_value);
+
+            RCLCPP_INFO(logger_, "STRING: %s", feature_name.c_str());
+
+            nh->declare_parameter<std::string>(param_namespace + feature_name, initial_value, descriptor);
+            break;
+          }
+          case VmbFeatureDataEnum: {
+            std::string initial_value = "";
+            EnumEntryVector enum_entries;
+
+            (*iter)->GetValue(initial_value);
+
+            if ((*iter)->GetEntries(enum_entries) == VmbErrorSuccess)
+            {
+              std::string enum_description = "Acceptable values: ";
+              bool first = true;
+              for (const auto& entry : enum_entries) {
+                std::string entry_name;
+                if (entry.GetName(entry_name) == VmbErrorSuccess)
+                {
+                  entry_name = first ? entry_name : ", " + entry_name;
+                  enum_description += entry_name;
+                  first = false;
+                }
+              }
+              descriptor.additional_constraints = enum_description;
+            }
+
+            RCLCPP_INFO(logger_, "ENUM: %s", feature_name.c_str());
+
+            nh->declare_parameter<std::string>(param_namespace + feature_name, initial_value, descriptor);
+            break;
+          }
+          case VmbFeatureDataCommand:
+          default:
+            // std::cout << "[None]" << std::endl;
+            break;
+        }
+        if (err != VmbErrorSuccess)
+        {
+          std::cout << "Could not get feature value. Error code: " << err << std::endl;
+        }
+      }
+
+      // std::cout << std::endl;
+
+
+
+
+
+      // rcl_interfaces::msg::ParameterDescriptor descriptor;
+
+      // rcl_interfaces::msg::FloatingPointRange float_range;
+      // float_range.from_value = 0.0;
+      // float_range.step = 1.0;
+      // float_range.to_value = 100.0;
+
+      // rcl_interfaces::msg::ParameterDescriptor acquisition_rate_descriptor;
+
+      // float_range.to_value = 40.0;
+      // acquisition_rate_descriptor.floating_point_range.push_back(float_range);
+      // nh->declare_parameter<float>(name, 10.0, descriptor);
+
+    }
+  }
+  else
+  {
+    std::cout << "Could not get features. Error code: " << api_.errorCodeToMessage(err) << std::endl;
+  }
+
+
+
+  RCLCPP_INFO(logger_, "Found %d features on the camera, %u of which are writable. All features are exposed as ROS params", writable_features_.size(), writable_count);
+
+
+
 }
 
 // rcl_interfaces::msg::SetParametersResult AvtVimbaCamera::updateConfig(rclcpp::Parameter param)

@@ -57,9 +57,8 @@ MonoCameraNode::MonoCameraNode() : Node("mono_camera"), api_(this->get_logger())
 
   loadParams();
 
-  this->add_on_set_parameters_callback(
-    std::bind(&MonoCameraNode::parameterCallback, this, std::placeholders::_1)
-  );
+  // TODO: move this into the camera file, so that only camera-related params are configured
+  param_sub_ = this->add_on_set_parameters_callback(std::bind(&MonoCameraNode::parameterCallback, this, std::placeholders::_1));
 
   // next set avt params, so the callback is triggered?
 
@@ -77,9 +76,10 @@ MonoCameraNode::MonoCameraNode() : Node("mono_camera"), api_(this->get_logger())
   //     std::bind(&avt_vimba_camera::MonoCameraNode::configure, this, std::placeholders::_1, std::placeholders::_2));
 
   // Configure camera
-  // cam_.initConfig(this);
+
 
   cam_.start(ip_, guid_, frame_id_, print_all_features_);
+  cam_.initConfig(this);
   updateCameraInfo();
   cam_.startImaging();
 
@@ -158,13 +158,18 @@ void MonoCameraNode::frameCallback(const FramePtr& vimba_frame_ptr)
 rcl_interfaces::msg::SetParametersResult MonoCameraNode::parameterCallback (
   const std::vector<rclcpp::Parameter> &parameters)
 {
-  std::cout << "PARAMMMM" << std::endl;
-  RCLCPP_INFO(this->get_logger(), "PARAM_SET111");
+  // std::cout << "PARAMMMM" << parameters.size() << std::endl;
+  // RCLCPP_INFO(this->get_logger(), "PARAM_NO: %d", parameters.size());
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
   result.reason = "success";
 
-  RCLCPP_INFO(this->get_logger(), "PARAM_SET");
+  for (const auto &param : parameters)
+  {
+    RCLCPP_INFO(this->get_logger(), "PARAM_SET: %s", param.get_name().c_str());
+  }
+
+  // RCLCPP_INFO(this->get_logger(), "PARAM_SET");
   return result;
 }
 

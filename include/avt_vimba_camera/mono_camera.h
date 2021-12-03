@@ -74,6 +74,8 @@ private:
   image_transport::CameraPublisher camera_info_pub_;
   // image_transport::CameraPublisher pub_;
 
+  OnSetParametersCallbackHandle::SharedPtr param_sub_;
+
   std::shared_ptr<camera_info_manager::CameraInfoManager> info_man_;
 
   // Dynamic reconfigure

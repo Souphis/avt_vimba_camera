@@ -138,6 +138,7 @@ private:
   std::string name_;
   std::string guid_;
   std::string frame_id_;
+  std::map<std::string, bool> writable_features_;
 
   diagnostic_updater::Updater updater_;
   std::string diagnostic_msg_;
