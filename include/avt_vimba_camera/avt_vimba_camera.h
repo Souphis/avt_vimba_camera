@@ -57,6 +57,7 @@ enum FrameStartTriggerMode
   Freerun,
   FixedRate,
   Software,
+  SyncIn0,
   SyncIn1,
   SyncIn2,
   SyncIn3,
@@ -166,6 +167,7 @@ private:
   void updatePixelFormatConfig(Config& config);
   void updatePtpModeConfig(Config& config);
   void updateGPIOConfig(Config& config);
+  void updateUSBGPIOConfig(Config& config);
   void updateIrisConfig(Config& config);
 
   void getCurrentState(diagnostic_updater::DiagnosticStatusWrapper& stat);

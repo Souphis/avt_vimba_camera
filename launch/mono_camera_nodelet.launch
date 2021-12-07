@@ -66,6 +66,9 @@
   <arg name="sync_out_polarity" default="Normal"/>
   <arg name="sync_out_selector" default="SyncOut1"/>
   <arg name="sync_out_source" default="GPO"/>
+  <!-- USB GPIO -->
+  <arg name="line_selector" default="Line0"/>
+  <arg name="line_mode" default="Input"/>
   <!-- Iris -->
   <arg name="iris_auto_target" default="50"/>
   <arg name="iris_mode" default="Continuous"/>
@@ -142,6 +145,9 @@
     <param name="sync_out_polarity" value="$(arg sync_out_polarity)"/>
     <param name="sync_out_selector" value="$(arg sync_out_selector)"/>
     <param name="sync_out_source" value="$(arg sync_out_source)"/>
+
+    <param name="line_selector" value="$(arg line_selector)"/>
+    <param name="line_mode" value="$(arg line_mode)"/>
 
     <param name="iris_auto_target" value="$(arg iris_auto_target)"/>
     <param name="iris_mode" value="$(arg iris_mode)"/>

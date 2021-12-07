@@ -41,7 +41,7 @@
 namespace avt_vimba_camera
 {
 static const char* AutoMode[] = { "Off", "Once", "Continuous" };
-static const char* TriggerMode[] = { "Freerun", "FixedRate", "Software", "Line1",  "Line2",
+static const char* TriggerMode[] = { "Freerun", "FixedRate", "Software", "Line0", "Line1",  "Line2",
                                      "Line3",   "Line4",     "Action0",  "Action1" };
 static const char* AcquisitionMode[] = { "Continuous", "SingleFrame", "MultiFrame", "Recorder" };
 static const char* PixelFormatMode[] = { "Mono8",           "Mono10",          "Mono10Packed",    "Mono12",
@@ -155,7 +155,7 @@ void AvtVimbaCamera::start(const std::string& ip_str, const std::string& guid_st
   int trigger_source_int = getTriggerModeInt(trigger_source);
 
   if (trigger_source_int == Freerun || trigger_source_int == FixedRate || trigger_source_int == SyncIn1 ||
-      trigger_source_int == Action0 || trigger_source_int == Action1)
+      trigger_source_int == Action0 || trigger_source_int == Action1 || trigger_source_int == Software)
   {
     // Create a frame observer for this camera
     SP_SET(frame_obs_ptr_,
@@ -667,6 +667,10 @@ int AvtVimbaCamera::getTriggerModeInt(std::string mode_str)
   {
     mode = Software;
   }
+  else if (mode_str == TriggerMode[SyncIn0])
+  {
+    mode = SyncIn0;;
+  }
   else if (mode_str == TriggerMode[SyncIn1])
   {
     mode = SyncIn1;
@@ -857,6 +861,7 @@ void AvtVimbaCamera::updateConfig(Config& config)
   updateROIConfig(config);
   updateBandwidthConfig(config);
   updateGPIOConfig(config);
+  updateUSBGPIOConfig(config);
   updatePtpModeConfig(config);
   updatePixelFormatConfig(config);
   updateAcquisitionConfig(config);
@@ -1169,7 +1174,7 @@ void AvtVimbaCamera::updatePixelFormatConfig(Config& config)
   }
 }
 
-/** Change the GPIO configuration */
+/** Change the Gige GPIO configuration */
 void AvtVimbaCamera::updateGPIOConfig(Config& config)
 {
   if (on_init_)
@@ -1191,6 +1196,23 @@ void AvtVimbaCamera::updateGPIOConfig(Config& config)
   if (config.sync_out_source != config_.sync_out_source || on_init_)
   {
     configureFeature("SyncOutSource", config.sync_out_source, config.sync_out_source);
+  }
+}
+
+/** Change the USB GPIO configuration */
+void AvtVimbaCamera::updateUSBGPIOConfig(Config& config)
+{
+  if (on_init_)
+  {
+    ROS_INFO("Updating USB GPIO config:");
+  }
+  if (config.line_selector != config_.line_selector|| on_init_)
+  {
+    configureFeature("LineSelector", config.line_selector, config.line_selector);
+  }
+  if (config.line_mode != config_.line_mode || on_init_)
+  {
+    configureFeature("LineMode", config.line_mode, config.line_mode);
   }
 }
 
