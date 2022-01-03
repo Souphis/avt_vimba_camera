@@ -41,8 +41,8 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <camera_info_manager/camera_info_manager.hpp>
 #include <image_transport/image_transport.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
-#include <string>
 
 namespace avt_vimba_camera
 {
@@ -66,9 +66,19 @@ private:
 
   image_transport::CameraPublisher camera_info_pub_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> info_man_;
+  
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr start_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stop_srv_;
+
 
   void loadParams();
   void frameCallback(const FramePtr& vimba_frame_ptr);
+  void startSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                        const std_srvs::srv::Trigger::Request::SharedPtr req,
+                        std_srvs::srv::Trigger::Response::SharedPtr res);
+  void stopSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                       const std_srvs::srv::Trigger::Request::SharedPtr req,
+                       std_srvs::srv::Trigger::Response::SharedPtr res);
 };
 }  // namespace avt_vimba_camera
 #endif

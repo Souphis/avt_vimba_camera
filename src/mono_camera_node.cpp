@@ -32,6 +32,8 @@
 
 #include "avt_vimba_camera/mono_camera_node.hpp"
 
+using namespace std::placeholders;
+
 namespace avt_vimba_camera
 {
 MonoCameraNode::MonoCameraNode() : Node("camera"), api_(this->get_logger()), cam_(std::shared_ptr<rclcpp::Node>(dynamic_cast<rclcpp::Node * >(this)))
@@ -40,7 +42,10 @@ MonoCameraNode::MonoCameraNode() : Node("camera"), api_(this->get_logger()), cam
   camera_info_pub_ = image_transport::create_camera_publisher(this, "~/image", rmw_qos_profile_system_default);
 
   // Set the frame callback
-  cam_.setCallback(std::bind(&avt_vimba_camera::MonoCameraNode::frameCallback, this, std::placeholders::_1));
+  cam_.setCallback(std::bind(&avt_vimba_camera::MonoCameraNode::frameCallback, this, _1));
+
+  start_srv_ = create_service<std_srvs::srv::Trigger>("start_stream", std::bind(&MonoCameraNode::startSrvCallback, this, _1, _2, _3));
+  stop_srv_ = create_service<std_srvs::srv::Trigger>("stop_stream", std::bind(&MonoCameraNode::stopSrvCallback, this, _1, _2, _3));
 
   loadParams();
 }
@@ -101,6 +106,39 @@ void MonoCameraNode::frameCallback(const FramePtr& vimba_frame_ptr)
     {
       RCLCPP_WARN_STREAM(this->get_logger(), "Function frameToImage returned 0. No image published.");
     }
+  }
+}
+
+void MonoCameraNode::startSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                                      const std_srvs::srv::Trigger::Request::SharedPtr req,
+                                      std_srvs::srv::Trigger::Response::SharedPtr res) {
+  (void)request_header;
+  (void)req;
+
+  cam_.startImaging();
+  cam_.setForceStop(false);
+  auto state = cam_.getCameraState();
+  res->success = true;
+  if (state == CameraState::ERROR)
+  {
+    res->success = false;
+  }
+}
+
+void MonoCameraNode::stopSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                                     const std_srvs::srv::Trigger::Request::SharedPtr req,
+                                     std_srvs::srv::Trigger::Response::SharedPtr res)
+{
+  (void)request_header;
+  (void)req;
+
+  cam_.stopImaging();
+  cam_.setForceStop(true);
+  auto state = cam_.getCameraState();
+  res->success = true;
+  if (state == CameraState::ERROR)
+  {
+    res->success = false;
   }
 }
 
