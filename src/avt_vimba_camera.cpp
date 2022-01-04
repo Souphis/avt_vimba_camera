@@ -810,14 +810,13 @@ bool AvtVimbaCamera::createParamFromFeature(const FeaturePtr feature, std::strin
         feature->GetRange(minimum_value, maximum_value);
         feature->GetIncrement(step);
         
-        initial_value = std::clamp(initial_value, minimum_value, maximum_value);
+        initial_value = std::max(maximum_value, std::min(initial_value, minimum_value));
 
         rcl_interfaces::msg::FloatingPointRange float_range;
         float_range.from_value = minimum_value;
         float_range.to_value = maximum_value;
-        // TODO: setting step throws an exception rclcpp::exceptions::InvalidParameterValueException
-        // this need to be debugged
-        // float_range.step = step;
+        float_range.step = step;
+
         descriptor.floating_point_range.push_back(float_range);
         
         nh_->declare_parameter<double>(PARAM_NAMESPACE + feature_name, initial_value, descriptor);
