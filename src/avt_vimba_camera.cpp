@@ -815,7 +815,8 @@ bool AvtVimbaCamera::createParamFromFeature(const FeaturePtr feature, std::strin
         rcl_interfaces::msg::FloatingPointRange float_range;
         float_range.from_value = minimum_value;
         float_range.to_value = maximum_value;
-        float_range.step = step;
+        // TODO: step is not working when feature is set to Continuous
+        // float_range.step = step;
 
         descriptor.floating_point_range.push_back(float_range);
         
