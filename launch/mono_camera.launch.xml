@@ -13,7 +13,7 @@
 
   <!-- Camera parameters are used to configure the AVT camera upon startup, these params are defined in yaml files -->
   <!-- NOTE: It is suggested to create your own yaml file and use the following 'params_file' when launching -->
-  <arg name="params_file" default="$(find-pkg-share avt_vimba_camera)/config/usb_1800_U.yaml"/>
+  <arg name="params_file" default="$(find-pkg-share avt_vimba_camera)/config/params.yaml"/>
 
   <node pkg="avt_vimba_camera" exec="mono_camera_exec" name="$(var name)" output="screen">
     <param name="name" value="$(var name)"/>
