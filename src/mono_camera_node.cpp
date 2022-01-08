@@ -44,8 +44,8 @@ MonoCameraNode::MonoCameraNode() : Node("camera"), api_(this->get_logger()), cam
   // Set the frame callback
   cam_.setCallback(std::bind(&avt_vimba_camera::MonoCameraNode::frameCallback, this, _1));
 
-  start_srv_ = create_service<std_srvs::srv::Trigger>("start_stream", std::bind(&MonoCameraNode::startSrvCallback, this, _1, _2, _3));
-  stop_srv_ = create_service<std_srvs::srv::Trigger>("stop_stream", std::bind(&MonoCameraNode::stopSrvCallback, this, _1, _2, _3));
+  start_srv_ = create_service<std_srvs::srv::Trigger>("~/start_stream", std::bind(&MonoCameraNode::startSrvCallback, this, _1, _2, _3));
+  stop_srv_ = create_service<std_srvs::srv::Trigger>("~/stop_stream", std::bind(&MonoCameraNode::stopSrvCallback, this, _1, _2, _3));
 
   loadParams();
 }
