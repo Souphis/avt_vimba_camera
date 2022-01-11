@@ -118,11 +118,7 @@ void MonoCameraNode::startSrvCallback(const std::shared_ptr<rmw_request_id_t> re
   cam_.startImaging();
   cam_.setForceStop(false);
   auto state = cam_.getCameraState();
-  res->success = true;
-  if (state == CameraState::ERROR)
-  {
-    res->success = false;
-  }
+  res->success = state != CameraState::ERROR;
 }
 
 void MonoCameraNode::stopSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
@@ -135,11 +131,7 @@ void MonoCameraNode::stopSrvCallback(const std::shared_ptr<rmw_request_id_t> req
   cam_.stopImaging();
   cam_.setForceStop(true);
   auto state = cam_.getCameraState();
-  res->success = true;
-  if (state == CameraState::ERROR)
-  {
-    res->success = false;
-  }
+  res->success = state != CameraState::ERROR;
 }
 
 }  // namespace avt_vimba_camera

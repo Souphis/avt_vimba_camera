@@ -284,7 +284,7 @@ void AvtVimbaCamera::frameCallback(const FramePtr vimba_frame_ptr)
   thread_callback.join();
 }
 
-CameraState AvtVimbaCamera::getCameraState()
+CameraState AvtVimbaCamera::getCameraState() const
 {
   return camera_state_;
 }
