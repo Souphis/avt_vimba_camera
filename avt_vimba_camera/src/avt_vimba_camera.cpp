@@ -31,6 +31,7 @@
 /// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "avt_vimba_camera/avt_vimba_camera.hpp"
+#include "VimbaC/Include/VimbaC.h"
 #include "avt_vimba_camera/avt_vimba_api.hpp"
 
 #include <rclcpp/rclcpp.hpp>
@@ -1010,4 +1011,45 @@ void AvtVimbaCamera::getCurrentState(diagnostic_updater::DiagnosticStatusWrapper
       break;
   }
 }
+
+bool AvtVimbaCamera::loadCameraSettings(const std::string& filename)
+{
+  stopImaging();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  vimba_camera_ptr_->LoadSaveSettingsSetup(VmbFeaturePersistNoLUT, 5, 4);
+  auto err = vimba_camera_ptr_->LoadCameraSettings(filename);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  startImaging();
+
+  if (err != VmbErrorSuccess)
+  {
+    RCLCPP_ERROR(nh_->get_logger(), "Failed to load camera settings from %s", filename.c_str());
+    return false;
+  }
+  RCLCPP_INFO(nh_->get_logger(), "Loaded camera settings from %s", filename.c_str());
+  return true;
+}
+
+bool AvtVimbaCamera::saveCameraSettings(const std::string& filename)
+{
+  stopImaging();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  vimba_camera_ptr_->LoadSaveSettingsSetup(VmbFeaturePersistNoLUT, 5, 4);
+  auto err = vimba_camera_ptr_->SaveCameraSettings(filename);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  startImaging();
+
+  if (err != VmbErrorSuccess)
+  {
+    RCLCPP_ERROR(nh_->get_logger(), "Failed to save camera settings to %s", filename.c_str());
+    return false;
+  }
+  RCLCPP_INFO(nh_->get_logger(), "Saved camera settings to %s", filename.c_str());
+  return true;
+}
+
 }  // namespace avt_vimba_camera

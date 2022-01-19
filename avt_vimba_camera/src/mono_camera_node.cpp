@@ -31,6 +31,9 @@
 /// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "avt_vimba_camera/mono_camera_node.hpp"
+#include <avt_vimba_camera_msgs/srv/detail/load_settings__struct.hpp>
+#include <avt_vimba_camera_msgs/srv/detail/save_settings__struct.hpp>
+#include <thread>
 
 using namespace std::placeholders;
 
@@ -46,6 +49,9 @@ MonoCameraNode::MonoCameraNode() : Node("camera"), api_(this->get_logger()), cam
 
   start_srv_ = create_service<std_srvs::srv::Trigger>("~/start_stream", std::bind(&MonoCameraNode::startSrvCallback, this, _1, _2, _3));
   stop_srv_ = create_service<std_srvs::srv::Trigger>("~/stop_stream", std::bind(&MonoCameraNode::stopSrvCallback, this, _1, _2, _3));
+
+  load_srv_ = create_service<avt_vimba_camera_msgs::srv::LoadSettings>("~/load_settings", std::bind(&MonoCameraNode::loadSrvCallback, this, _1, _2, _3));
+  save_srv_ = create_service<avt_vimba_camera_msgs::srv::SaveSettings>("~/save_settings", std::bind(&MonoCameraNode::saveSrvCallback, this, _1, _2, _3));
 
   loadParams();
 }
@@ -137,4 +143,19 @@ void MonoCameraNode::stopSrvCallback(const std::shared_ptr<rmw_request_id_t> req
   res->success = state != CameraState::ERROR;
 }
 
+void MonoCameraNode::loadSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                                     const avt_vimba_camera_msgs::srv::LoadSettings::Request::SharedPtr req,
+                                     avt_vimba_camera_msgs::srv::LoadSettings::Response::SharedPtr res) 
+{
+  (void)request_header;
+  res->result = cam_.loadCameraSettings(req->input_path);
+}
+
+void MonoCameraNode::saveSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                                     const avt_vimba_camera_msgs::srv::SaveSettings::Request::SharedPtr req,
+                                     avt_vimba_camera_msgs::srv::SaveSettings::Response::SharedPtr res) 
+{
+  (void)request_header;
+  res->result = cam_.loadCameraSettings(req->output_path);
+}
 }  // namespace avt_vimba_camera

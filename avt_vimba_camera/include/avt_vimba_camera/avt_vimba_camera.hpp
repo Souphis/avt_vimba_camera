@@ -80,6 +80,9 @@ public:
   void startImaging();
   void stopImaging();
 
+  bool loadCameraSettings(const std::string& filename);
+  bool saveCameraSettings(const std::string& filename);
+
   // Utility functions
   double getTimestampRealTime(VmbUint64_t timestamp_ticks);
   bool isOpened()

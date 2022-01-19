@@ -27,6 +27,7 @@
   <depend>diagnostic_msgs</depend>
   <depend>image_transport</depend>
   <depend>message_filters</depend>
+  <depend>avt_vimba_camera_msgs</depend>
 
   <exec_depend>image_proc</exec_depend>
   <exec_depend>stereo_image_proc</exec_depend>
