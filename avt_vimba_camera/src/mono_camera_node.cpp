@@ -30,10 +30,12 @@
 /// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 /// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "avt_vimba_camera/mono_camera_node.hpp"
-#include <avt_vimba_camera_msgs/srv/detail/load_settings__struct.hpp>
-#include <avt_vimba_camera_msgs/srv/detail/save_settings__struct.hpp>
 #include <thread>
+#include <filesystem>
+
+#include <avt_vimba_camera/mono_camera_node.hpp>
+#include <avt_vimba_camera_msgs/srv/load_settings.hpp>
+#include <avt_vimba_camera_msgs/srv/save_settings.hpp>
 
 using namespace std::placeholders;
 
@@ -148,7 +150,16 @@ void MonoCameraNode::loadSrvCallback(const std::shared_ptr<rmw_request_id_t> req
                                      avt_vimba_camera_msgs::srv::LoadSettings::Response::SharedPtr res) 
 {
   (void)request_header;
+  std::filesystem::path path{req->input_path};
+  if (path.extension() != ".xml")
+  {
+    RCLCPP_WARN(this->get_logger(), "Invalid file extension. Only .xml is supported.");
+    res->result = false;
+  } 
+  else 
+  {
   res->result = cam_.loadCameraSettings(req->input_path);
+  }
 }
 
 void MonoCameraNode::saveSrvCallback(const std::shared_ptr<rmw_request_id_t> request_header,
@@ -156,6 +167,15 @@ void MonoCameraNode::saveSrvCallback(const std::shared_ptr<rmw_request_id_t> req
                                      avt_vimba_camera_msgs::srv::SaveSettings::Response::SharedPtr res) 
 {
   (void)request_header;
-  res->result = cam_.loadCameraSettings(req->output_path);
+  std::filesystem::path path{req->output_path};
+  if (path.extension() != ".xml")
+  {
+    RCLCPP_WARN(this->get_logger(), "Invalid file extension. Only .xml is supported.");
+    res->result = false;
+  } 
+  else 
+  {
+    res->result = cam_.saveCameraSettings(req->output_path);
+  }
 }
 }  // namespace avt_vimba_camera
