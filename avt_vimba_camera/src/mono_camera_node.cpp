@@ -157,7 +157,7 @@ void MonoCameraNode::loadSrvCallback(const std::shared_ptr<rmw_request_id_t> req
   } 
   else 
   {
-    res->result = cam_.saveCameraSettings(req->input_path);
+    res->result = cam_.loadCameraSettings(req->input_path);
   }
 }
 
